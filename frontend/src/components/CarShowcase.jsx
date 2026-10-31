@@ -89,9 +89,7 @@ export default function CarShowcase() {
       const dur = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 12.192;
       setVideoDuration(dur);
       video.currentTime = 0.1;
-      if (ambient) ambient.currentTime = 0.1;
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
+      if (ambient && window.innerWidth >= 1024) ambient.currentTime = 0.1;
     };
 
     const tickleInitialFrame = () => {
@@ -113,7 +111,8 @@ export default function CarShowcase() {
     if (video.readyState === 0) {
       video.load();
     }
-    if (ambient && ambient.readyState === 0) {
+    // Only preload/load ambient video on large screens to conserve mobile bandwidth and decoder chips
+    if (ambient && window.innerWidth >= 1024 && ambient.readyState === 0) {
       ambient.load();
     }
 
@@ -123,7 +122,7 @@ export default function CarShowcase() {
     };
   }, []);
 
-  // GSAP ScrollTrigger timeline pinning full screen
+  // GSAP ScrollTrigger timeline pinning full screen with hardware-friendly RAF seeking
   useEffect(() => {
     const container = containerRef.current;
     const video = videoRef.current;
@@ -133,6 +132,45 @@ export default function CarShowcase() {
     const isMobile = window.innerWidth < 1024;
     const scrollDistance = isMobile ? '+=180%' : '+=260%';
 
+    let targetTime = 0;
+    let seekRafId = null;
+    let isSectionActive = false;
+
+    // Direct hardware-accelerated video seek scheduler (prevents decoder queue thrashing)
+    const performSeek = () => {
+      seekRafId = null;
+      if (!video || video.readyState < 2) return;
+      if (video.seeking) {
+        return; // Hardware decoder busy, wait for seeked event
+      }
+      const timeDiff = Math.abs(video.currentTime - targetTime);
+      if (timeDiff > 0.02) {
+        try {
+          video.currentTime = targetTime;
+          if (ambient && !isMobile && ambient.readyState >= 2 && !ambient.seeking) {
+            ambient.currentTime = targetTime;
+          }
+        } catch (_) {}
+      }
+    };
+
+    const requestSeek = (t) => {
+      targetTime = t;
+      if (!seekRafId) {
+        seekRafId = requestAnimationFrame(performSeek);
+      }
+    };
+
+    const handleSeeked = () => {
+      if (video && Math.abs(video.currentTime - targetTime) > 0.03) {
+        if (!seekRafId) seekRafId = requestAnimationFrame(performSeek);
+      }
+    };
+
+    if (video) {
+      video.addEventListener('seeked', handleSeeked);
+    }
+
     const ctx = gsap.context(() => {
       scrollTriggerInstance.current = ScrollTrigger.create({
         trigger: container,
@@ -141,34 +179,24 @@ export default function CarShowcase() {
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
-        scrub: 0.4,
+        scrub: 0.3,
         invalidateOnRefresh: true,
+        onToggle: (self) => {
+          isSectionActive = self.isActive;
+        },
         onUpdate: (self) => {
+          if (!isSectionActive) return;
           const progress = self.progress;
           const dur = videoDuration || 12.192;
-          const targetTime = Math.min(progress * dur, dur - 0.02);
+          const tTime = Math.min(progress * dur, dur - 0.02);
 
-          // Smooth video seek tween
-          gsap.to(videoProxy.current, {
-            time: targetTime,
-            duration: 0.18,
-            ease: 'power1.out',
-            overwrite: 'auto',
-            onUpdate: () => {
-              if (video && video.readyState >= 2) {
-                video.currentTime = videoProxy.current.time;
-              }
-              if (ambient && ambient.readyState >= 2) {
-                ambient.currentTime = videoProxy.current.time;
-              }
-            }
-          });
+          requestSeek(tTime);
 
           // Determine current phase from targetTime
           let phase = 0;
-          if (targetTime >= 8.5) phase = 3;
-          else if (targetTime >= 6.5) phase = 2;
-          else if (targetTime >= 4.5) phase = 1;
+          if (tTime >= 8.5) phase = 3;
+          else if (tTime >= 6.5) phase = 2;
+          else if (tTime >= 4.5) phase = 1;
           else phase = 0;
 
           if (phase !== currentPhaseRef.current) {
@@ -181,12 +209,11 @@ export default function CarShowcase() {
           }
         }
       });
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, container);
 
     return () => {
+      if (seekRafId) cancelAnimationFrame(seekRafId);
+      if (video) video.removeEventListener('seeked', handleSeeked);
       ctx.revert();
     };
   }, [videoDuration]);
@@ -222,10 +249,10 @@ export default function CarShowcase() {
         ref={ambientVideoRef}
         muted
         playsInline
-        preload="auto"
+        preload="none"
         disablePictureInPicture
         disableRemotePlayback
-        className="absolute inset-0 w-full h-full object-cover filter blur-[90px] opacity-20 scale-110 pointer-events-none z-0"
+        className="hidden lg:block absolute inset-0 w-full h-full object-cover filter blur-2xl lg:blur-3xl opacity-20 scale-110 pointer-events-none z-0 transform-gpu"
       >
         <source src="/videos/evoke-car-cinematic.mp4" type="video/mp4" />
       </video>

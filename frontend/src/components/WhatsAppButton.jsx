@@ -24,7 +24,7 @@ export default function WhatsAppButton({ onOpenBooking }) {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-3">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-3.5 sm:bottom-6 sm:right-6 z-40 flex items-center gap-3">
       {/* Tooltip speech bubble (Desktop only) */}
       <AnimatePresence>
         {showTooltip && (
@@ -48,15 +48,15 @@ export default function WhatsAppButton({ onOpenBooking }) {
         onMouseLeave={() => setShowTooltip(false)}
         onClick={handleClick}
         aria-label="Direct WhatsApp Contact"
-        className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black text-white border border-white flex items-center justify-center hover:bg-white hover:text-black transition-all cursor-pointer group shadow-[0_4px_25px_rgba(0,0,0,0.8)]"
+        className="relative w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black text-white border border-white flex items-center justify-center hover:bg-white hover:text-black transition-all cursor-pointer group shadow-[0_4px_25px_rgba(0,0,0,0.8)]"
       >
         {/* Pulsing ring */}
         <span className="absolute -inset-1 rounded-full bg-white/20 animate-ping pointer-events-none" />
 
-        <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:text-black transition-colors" />
+        <MessageSquare className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-white group-hover:text-black transition-colors" />
 
         {/* Small active badge */}
-        <span className="absolute top-0 right-0 w-3 sm:w-3.5 h-3 sm:h-3.5 bg-black rounded-full border border-white flex items-center justify-center">
+        <span className="absolute top-0 right-0 w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-black rounded-full border border-white flex items-center justify-center">
           <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-white" />
         </span>
       </motion.button>

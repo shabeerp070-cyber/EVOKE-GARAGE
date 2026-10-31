@@ -79,8 +79,9 @@ export default function BmwDriftAnimation() {
     isReady: false,
   });
 
-  // Measure bounds dynamically from DOM elements
+  // Measure bounds dynamically from DOM elements with debouncing and change thresholds
   useEffect(() => {
+    let resizeTimer = null;
     const updateLayout = () => {
       const main = document.querySelector('main');
       const pillars = document.getElementById('about-pillars');
@@ -92,33 +93,49 @@ export default function BmwDriftAnimation() {
       const pillarsRect = pillars.getBoundingClientRect();
       const paintRect = paintFrame.getBoundingClientRect();
 
-      const top = pillarsRect.top - mainRect.top - 15;
-      const bottom = paintRect.bottom - mainRect.top + 25;
+      const top = Math.round(pillarsRect.top - mainRect.top - 15);
+      const bottom = Math.round(paintRect.bottom - mainRect.top + 25);
       const height = Math.max(bottom - top, 800);
       const width = main ? main.offsetWidth : window.innerWidth;
       const isMobile = width < 768;
 
-      setLayout({
-        top,
-        height,
-        width,
-        isMobile,
-        isReady: true,
+      setLayout((prev) => {
+        // Only update state if values actually changed to prevent render loops
+        if (
+          prev.isReady &&
+          Math.abs(prev.top - top) < 6 &&
+          Math.abs(prev.height - height) < 10 &&
+          Math.abs(prev.width - width) < 6 &&
+          prev.isMobile === isMobile
+        ) {
+          return prev;
+        }
+        return {
+          top,
+          height,
+          width,
+          isMobile,
+          isReady: true,
+        };
       });
     };
 
     updateLayout();
-    const t1 = setTimeout(updateLayout, 300);
-    const t2 = setTimeout(updateLayout, 1000);
+    const t1 = setTimeout(updateLayout, 350);
 
-    window.addEventListener('resize', updateLayout);
-    ScrollTrigger.addEventListener('refresh', updateLayout);
+    const debouncedResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(updateLayout, 200);
+    };
+
+    window.addEventListener('resize', debouncedResize, { passive: true });
+    window.addEventListener('orientationchange', debouncedResize, { passive: true });
 
     return () => {
       clearTimeout(t1);
-      clearTimeout(t2);
-      window.removeEventListener('resize', updateLayout);
-      ScrollTrigger.removeEventListener('refresh', updateLayout);
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', debouncedResize);
+      window.removeEventListener('orientationchange', debouncedResize);
     };
   }, []);
 
@@ -161,16 +178,26 @@ export default function BmwDriftAnimation() {
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: !isMobile, // Disable expensive multisample antialiasing on mobile
       alpha: true,
       powerPreference: 'high-performance',
+      stencil: false,
+      depth: true,
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // On mobile clamp DPR to 1.0 (huge GPU fill-rate boost on 3x screens). On desktop clamp to 1.5.
+    const pixelRatio = isMobile
+      ? Math.min(window.devicePixelRatio || 1, 1.0)
+      : Math.min(window.devicePixelRatio || 1, 1.5);
+    renderer.setPixelRatio(pixelRatio);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
+    
+    // Directional shadow mapping enabled only on desktop (mobile uses zero-cost contactShadowMesh)
+    renderer.shadowMap.enabled = !isMobile;
+    if (!isMobile) {
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+    }
 
     // Studio Atelier Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
@@ -178,24 +205,31 @@ export default function BmwDriftAnimation() {
 
     const sunLight = new THREE.DirectionalLight(0xffffff, 2.8);
     sunLight.position.set(width / 2 + 400, -height / 2 + 700, 950);
-    sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
-    sunLight.shadow.camera.near = 100;
-    sunLight.shadow.camera.far = 3500;
+    sunLight.castShadow = !isMobile;
+    if (!isMobile) {
+      sunLight.shadow.mapSize.width = 512;
+      sunLight.shadow.mapSize.height = 512;
+      sunLight.shadow.camera.near = 100;
+      sunLight.shadow.camera.far = 3500;
+    }
     scene.add(sunLight);
 
     const fillLight = new THREE.DirectionalLight(0xddeeff, 1.2);
     fillLight.position.set(width / 2 - 400, -height / 2 - 600, 700);
     scene.add(fillLight);
 
-    // Floor shadow receiver plane
-    const floorGeo = new THREE.PlaneGeometry(width * 2.5, height * 2);
-    const floorMat = new THREE.ShadowMaterial({ opacity: 0.35 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.position.set(width / 2, -height / 2, 0);
-    floor.receiveShadow = true;
-    scene.add(floor);
+    // Floor shadow receiver plane (only instantiated on desktop)
+    let floorGeo = null;
+    let floorMat = null;
+    let floor = null;
+    if (!isMobile) {
+      floorGeo = new THREE.PlaneGeometry(width * 2.5, height * 2);
+      floorMat = new THREE.ShadowMaterial({ opacity: 0.35 });
+      floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.position.set(width / 2, -height / 2, 0);
+      floor.receiveShadow = true;
+      scene.add(floor);
+    }
 
     // Raycaster for exact 2D Screen -> 3D World projection on Ground Plane
     const groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -254,7 +288,10 @@ export default function BmwDriftAnimation() {
 
     // Wheel rig references for steering & spinning
     const wheelRig = { fl: {}, fr: {}, rl: {}, rr: {} };
+    const allocatedGeometries = [];
     let isCarLoaded = false;
+    let isInViewport = false;
+    let lastRenderedProgress = -1;
 
     // Load BMW 3D Model
     const loader = new GLTFLoader();
@@ -284,8 +321,8 @@ export default function BmwDriftAnimation() {
         // PBR Materials setup
         car.traverse((node) => {
           if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
+            node.castShadow = !isMobile;
+            node.receiveShadow = !isMobile;
             if (node.material) {
               const materials = Array.isArray(node.material) ? node.material : [node.material];
               materials.forEach((mat) => {
@@ -346,9 +383,10 @@ export default function BmwDriftAnimation() {
             for (const origMesh of originalMeshes) {
               const subGeo = extractSubGeometry(origMesh.geometry, def.test, def.center);
               if (subGeo) {
+                allocatedGeometries.push(subGeo);
                 const mesh = new THREE.Mesh(subGeo, origMesh.material);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
+                mesh.castShadow = !isMobile;
+                mesh.receiveShadow = !isMobile;
                 spinGroup.add(mesh);
               }
             }
@@ -365,8 +403,10 @@ export default function BmwDriftAnimation() {
         carBody.add(car);
         isCarLoaded = true;
 
-        // Render initial frame
-        updateDrivingSequence(0);
+        // Render initial frame if already in viewport
+        if (isInViewport) {
+          updateDrivingSequence(0);
+        }
       },
       undefined,
       (err) => {
@@ -376,8 +416,12 @@ export default function BmwDriftAnimation() {
 
     // Update Driving Physics along Path at Progress t (0 to 1)
     function updateDrivingSequence(t) {
-      if (isDisposed || !isCarLoaded) return;
+      if (isDisposed || !isCarLoaded || !isInViewport) return;
       t = Math.max(0, Math.min(1, t));
+
+      // Avoid redundant calculations if progress has not shifted noticeably
+      if (Math.abs(t - lastRenderedProgress) < 0.0003) return;
+      lastRenderedProgress = t;
 
       // 1. Sample points for position, forward direction, and curvature
       const delta = 0.005;
@@ -440,6 +484,12 @@ export default function BmwDriftAnimation() {
       // 6. Smooth Opacity at Start and Exit
       const fadeDist = 0.04;
       const opacity = t < fadeDist ? t / fadeDist : (t > 1 - fadeDist ? (1 - t) / fadeDist : 1);
+      
+      // Zero-cost culling when completely faded out
+      if (opacity <= 0.01) {
+        canvas.style.opacity = '0';
+        return;
+      }
       canvas.style.opacity = opacity.toFixed(3);
 
       if (!isDisposed) {
@@ -447,35 +497,36 @@ export default function BmwDriftAnimation() {
       }
     }
 
-    // 2. Setup ScrollTrigger driving synchronization within GSAP Context
+    // 2. Setup ScrollTrigger driving synchronization with active viewport culling
     const ctx = gsap.context(() => {
       ScrollTrigger.create({
         trigger: containerRef.current,
-        start: 'top 80%',
-        end: 'bottom 25%',
-        scrub: 1.2,
+        start: 'top 95%',
+        end: 'bottom 5%',
+        scrub: isMobile ? 0.8 : 1.2,
         invalidateOnRefresh: true,
+        onToggle: (self) => {
+          isInViewport = self.isActive;
+          if (!self.isActive) {
+            canvas.style.opacity = '0';
+          }
+        },
         onUpdate: (self) => {
-          if (isDisposed) return;
-          const progress = self.progress;
-
-          // Update 3D car position, wheels, steering, and drift
-          updateDrivingSequence(progress);
+          if (isDisposed || !isInViewport) return;
+          updateDrivingSequence(self.progress);
         },
       });
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, containerRef.current);
 
     return () => {
       isDisposed = true;
       ctx.revert();
+      allocatedGeometries.forEach((geo) => geo.dispose());
       shadowTex.dispose();
       shadowMat.dispose();
       shadowGeo.dispose();
-      floorMat.dispose();
-      floorGeo.dispose();
+      if (floorMat) floorMat.dispose();
+      if (floorGeo) floorGeo.dispose();
       renderer.dispose();
     };
   }, [isReady, pathD, width, height, isMobile]);
@@ -511,7 +562,7 @@ export default function BmwDriftAnimation() {
       {/* 3D WebGL Canvas for Realistic BMW Driving Animation */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none z-[10]"
+        className="absolute inset-0 w-full h-full pointer-events-none z-[10] transform-gpu will-change-[opacity]"
         style={{ opacity: 0 }}
       />
     </div>

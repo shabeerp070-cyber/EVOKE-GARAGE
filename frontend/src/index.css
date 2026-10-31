@@ -349,3 +349,31 @@ html.lenis, html.lenis body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ========================================================================= */
+/* MOBILE PERFORMANCE & 60 FPS GPU OPTIMIZATIONS                             */
+/* ========================================================================= */
+@media (max-width: 768px) {
+  /* Clamp expensive backdrop blur shaders on mobile to prevent GPU fill-rate stalling */
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    -webkit-backdrop-filter: blur(8px) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+
+  /* Simplify multi-layer box shadows to single GPU raster passes on mobile */
+  .shadow-2xl,
+  .shadow-xl {
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  /* Optimize transforms on composite layers */
+  .transform-gpu {
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+}

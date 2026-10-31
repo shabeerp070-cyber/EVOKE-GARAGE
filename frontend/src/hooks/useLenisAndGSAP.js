@@ -48,14 +48,30 @@ export function useLenisAndGSAP() {
     gsap.ticker.add(tickerCallback);
     gsap.ticker.lagSmoothing(500, 33);
 
-    // Refresh ScrollTrigger when layout or window orientation stabilizes
+    // Refresh ScrollTrigger when layout or window orientation stabilizes (debounced to avoid mobile address-bar thrashing)
+    let lastWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+    let lastHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+    let resizeTimer = null;
+
     const handleResize = () => {
-      ScrollTrigger.refresh();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        // Only refresh if width changed or height changed significantly (ignoring minor address bar collapse)
+        if (Math.abs(w - lastWidth) > 8 || Math.abs(h - lastHeight) > 80) {
+          lastWidth = w;
+          lastHeight = h;
+          ScrollTrigger.refresh();
+        }
+      }, 200);
     };
+
     window.addEventListener('resize', handleResize, { passive: true });
     window.addEventListener('orientationchange', handleResize, { passive: true });
 
     return () => {
+      clearTimeout(resizeTimer);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
       gsap.ticker.remove(tickerCallback);

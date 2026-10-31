@@ -184,7 +184,7 @@ export default function App() {
       {/* Minimalist Forge-Style Navigation */}
       <Navbar onOpenBooking={() => handleOpenBooking()} />
 
-      <main className="relative">
+      <main className="relative overflow-x-clip">
         {/* Continuous BMW Drift Trajectory across Three Pillars & Core Disciplines */}
         <BmwDriftAnimation />
 

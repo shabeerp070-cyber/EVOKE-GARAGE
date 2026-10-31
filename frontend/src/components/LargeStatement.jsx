@@ -50,9 +50,6 @@ export default function LargeStatement() {
           }
         );
       }
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, sectionRef.current);
 
     return () => {

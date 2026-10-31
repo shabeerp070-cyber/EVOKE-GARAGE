@@ -111,9 +111,6 @@ export default function About() {
           }
         );
       });
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, containerRef.current);
 
     return () => {

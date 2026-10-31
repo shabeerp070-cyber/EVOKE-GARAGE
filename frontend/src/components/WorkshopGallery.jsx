@@ -72,9 +72,6 @@ export default function WorkshopGallery() {
           }
         );
       }
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, containerRef.current);
 
     return () => {

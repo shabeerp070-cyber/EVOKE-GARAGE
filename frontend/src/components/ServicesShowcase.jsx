@@ -56,9 +56,6 @@ export default function ServicesShowcase({ onSelectService }) {
           );
         }
       });
-
-      ScrollTrigger.sort();
-      ScrollTrigger.refresh();
     }, containerRef.current);
 
     return () => {

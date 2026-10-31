@@ -57,14 +57,14 @@ export default function Navbar({ onOpenBooking }) {
       <header
         className={`site-header fixed top-0 left-0 right-0 z-50 transition-all duration-400 select-none ${
           isScrolled
-            ? 'bg-black/95 backdrop-blur-xl border-b border-white/10 py-3 sm:py-4 shadow-xl shadow-black/80'
-            : 'bg-gradient-to-b from-black via-black/80 to-transparent py-4 sm:py-6'
+            ? 'bg-black/95 backdrop-blur-xl border-b border-white/10 py-2.5 sm:py-4 shadow-xl shadow-black/80'
+            : 'bg-gradient-to-b from-black via-black/80 to-transparent py-3 sm:py-6'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 flex items-center justify-between">
           {/* Brand Logo & Name */}
-          <a href="#" className="flex items-center gap-3 sm:gap-3.5 group min-h-[44px]">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full p-0.5 bg-white/10 ring-1 ring-white/20 group-hover:ring-white/60 transition-all flex-shrink-0">
+          <a href="#" className="flex items-center gap-2 sm:gap-3.5 group min-h-[40px] sm:min-h-[44px] flex-shrink-0">
+            <div className="w-7.5 h-7.5 sm:w-11 sm:h-11 rounded-full p-0.5 bg-white/10 ring-1 ring-white/20 group-hover:ring-white/60 transition-all flex-shrink-0">
               <img
                 src={siteConfig.brand.logoCircle}
                 alt="EVOKE GARAGE Official Emblem"
@@ -74,10 +74,10 @@ export default function Navbar({ onOpenBooking }) {
               />
             </div>
             <div className="flex flex-col justify-center">
-              <span className="font-heading font-black tracking-[0.16em] sm:tracking-[0.22em] text-base sm:text-xl text-white uppercase leading-none whitespace-nowrap">
+              <span className="font-heading font-black tracking-[0.14em] sm:tracking-[0.22em] text-xs sm:text-xl text-white uppercase leading-none whitespace-nowrap">
                 {siteConfig.brand.name}
               </span>
-              <span className="text-[9px] sm:text-xs font-tech text-zinc-300 tracking-[0.10em] sm:tracking-[0.2em] uppercase mt-1 font-semibold whitespace-nowrap">
+              <span className="text-[7.5px] sm:text-xs font-tech text-zinc-300 tracking-[0.08em] sm:tracking-[0.2em] uppercase mt-0.5 sm:mt-1 font-semibold whitespace-nowrap">
                 OTTAPALAM · PALAKKAD · KERALA
               </span>
             </div>
@@ -123,21 +123,21 @@ export default function Navbar({ onOpenBooking }) {
           </div>
 
           {/* Mobile & Tablet Header Controls (Visible below lg) */}
-          <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
+          <div className="flex items-center gap-1.5 sm:gap-3 lg:hidden flex-shrink-0">
             <button
               onClick={() => onOpenBooking?.()}
-              className="px-4 py-2 min-h-[42px] bg-black text-white border border-white font-tech text-xs sm:text-sm uppercase tracking-wider font-bold rounded-none hover:bg-white hover:text-black active:scale-95 transition-all duration-300 cursor-pointer"
+              className="px-3 py-1.5 min-h-[36px] sm:min-h-[42px] bg-black text-white border border-white font-tech text-xs sm:text-sm uppercase tracking-wider font-bold rounded-none hover:bg-white hover:text-black active:scale-95 transition-all duration-300 cursor-pointer whitespace-nowrap"
             >
               INQUIRE
             </button>
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-11 h-11 flex items-center justify-center text-white bg-black border border-white/20 rounded-none hover:border-white focus:outline-none cursor-pointer"
+              className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center text-white bg-black border border-white/20 rounded-none hover:border-white focus:outline-none cursor-pointer flex-shrink-0"
               aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
+              {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5 text-white" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5 text-white" />}
             </button>
           </div>
         </div>
