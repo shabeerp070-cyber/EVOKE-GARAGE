@@ -62,12 +62,12 @@ export default function CarShowcase() {
   const videoRef = useRef(null);
   const ambientVideoRef = useRef(null);
   const glowRef = useRef(null);
-  const videoProxy = useRef({ time: 0 });
+  const targetTimeRef = useRef(0);
+  const durationRef = useRef(12.192);
   const currentPhaseRef = useRef(0);
   const scrollTriggerInstance = useRef(null);
 
   const [activePhaseIndex, setActivePhaseIndex] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(12.192);
 
   // Initialize and attach video
   useEffect(() => {
@@ -75,14 +75,17 @@ export default function CarShowcase() {
     const ambient = ambientVideoRef.current;
     if (!video) return;
 
-    // Explicitly guarantee DOM property muted & playsInline for autoplay policy
+    // Explicitly guarantee DOM property muted & playsInline for mobile autoplay policy
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
+    video.preload = 'auto';
+
     if (ambient) {
       ambient.muted = true;
       ambient.defaultMuted = true;
       ambient.playsInline = true;
+      ambient.preload = 'none';
     }
 
     const isMobile = window.innerWidth < 768;
@@ -93,38 +96,23 @@ export default function CarShowcase() {
 
     const handleLoadedMetadata = () => {
       const dur = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 12.192;
-      setVideoDuration(dur);
-      video.currentTime = 0.1;
-      if (ambient && window.innerWidth >= 1024) ambient.currentTime = 0.1;
-    };
-
-    const tickleInitialFrame = () => {
-      if (video.currentTime === 0) video.currentTime = 0.1;
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => video.pause()).catch(() => {});
-      }
+      durationRef.current = dur;
+      video.currentTime = 0.05;
+      if (ambient && window.innerWidth >= 1024) ambient.currentTime = 0.05;
     };
 
     if (video.readyState >= 1) {
       handleLoadedMetadata();
-      tickleInitialFrame();
     } else {
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      video.addEventListener('canplay', tickleInitialFrame, { once: true });
     }
 
     if (video.readyState === 0) {
       video.load();
     }
-    // Only preload/load ambient video on large screens to conserve mobile bandwidth and decoder chips
-    if (ambient && window.innerWidth >= 1024 && ambient.readyState === 0) {
-      ambient.load();
-    }
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('canplay', tickleInitialFrame);
     };
   }, []);
 
@@ -133,57 +121,56 @@ export default function CarShowcase() {
     const container = containerRef.current;
     const video = videoRef.current;
     const ambient = ambientVideoRef.current;
-    if (!container) return;
+    if (!container || !video) return;
 
     const isMobile = window.innerWidth < 1024;
     const scrollDistance = isMobile ? '+=180%' : '+=260%';
 
-    let targetTime = 0;
-    let seekRafId = null;
+    let rafId = null;
     let isSectionActive = false;
 
-    // Direct hardware-accelerated video seek scheduler (prevents decoder queue thrashing)
-    const performSeek = () => {
-      seekRafId = null;
+    // Synchronize video currentTime to the target scroll time via RAF
+    const syncVideo = () => {
+      rafId = null;
       if (!video || video.readyState < 2) return;
-      if (video.seeking) {
-        return; // Hardware decoder busy, wait for seeked event
+
+      const target = targetTimeRef.current;
+      const current = video.currentTime;
+      const diff = target - current;
+
+      // Only seek when difference exceeds ~half a frame at 30fps (0.016s)
+      if (Math.abs(diff) >= 0.016) {
+        if (!video.seeking) {
+          try {
+            video.currentTime = target;
+          } catch (_) {}
+        }
       }
-      const timeDiff = Math.abs(video.currentTime - targetTime);
-      if (timeDiff > 0.02) {
-        try {
-          if (typeof video.fastSeek === 'function') {
-            video.fastSeek(targetTime);
-          } else {
-            video.currentTime = targetTime;
-          }
-          if (ambient && !isMobile && ambient.readyState >= 2 && !ambient.seeking) {
-            if (typeof ambient.fastSeek === 'function') {
-              ambient.fastSeek(targetTime);
-            } else {
-              ambient.currentTime = targetTime;
-            }
-          }
-        } catch (_) {}
+
+      // Sync ambient video with lower frequency on desktop to eliminate decoder contention
+      if (ambient && !isMobile && ambient.readyState >= 2 && !ambient.seeking) {
+        if (Math.abs(target - ambient.currentTime) > 0.25) {
+          try {
+            ambient.currentTime = target;
+          } catch (_) {}
+        }
       }
     };
 
-    const requestSeek = (t) => {
-      targetTime = t;
-      if (!seekRafId) {
-        seekRafId = requestAnimationFrame(performSeek);
+    const scheduleSync = () => {
+      if (!rafId) {
+        rafId = requestAnimationFrame(syncVideo);
       }
     };
 
+    // When the browser finishes decoding the current seek, immediately catch up to latest target
     const handleSeeked = () => {
-      if (video && Math.abs(video.currentTime - targetTime) > 0.03) {
-        if (!seekRafId) seekRafId = requestAnimationFrame(performSeek);
+      if (video && Math.abs(targetTimeRef.current - video.currentTime) >= 0.016) {
+        scheduleSync();
       }
     };
 
-    if (video) {
-      video.addEventListener('seeked', handleSeeked);
-    }
+    video.addEventListener('seeked', handleSeeked);
 
     const ctx = gsap.context(() => {
       scrollTriggerInstance.current = ScrollTrigger.create({
@@ -193,20 +180,26 @@ export default function CarShowcase() {
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
-        scrub: 0.3,
+        scrub: true, // Direct 1:1 scroll synchronization (no artificial smoothing lag)
         invalidateOnRefresh: true,
         onToggle: (self) => {
           isSectionActive = self.isActive;
+          if (self.isActive) {
+            const dur = durationRef.current || 12.192;
+            targetTimeRef.current = Math.min(Math.max(self.progress * dur, 0), dur - 0.02);
+            scheduleSync();
+          }
         },
         onUpdate: (self) => {
           if (!isSectionActive) return;
-          const progress = self.progress;
-          const dur = videoDuration || 12.192;
+          const progress = Math.max(0, Math.min(1, self.progress));
+          const dur = durationRef.current || 12.192;
           const tTime = Math.min(progress * dur, dur - 0.02);
 
-          requestSeek(tTime);
+          targetTimeRef.current = tTime;
+          scheduleSync();
 
-          // Determine current phase from targetTime
+          // Determine current phase from targetTime (only 3 state updates across entire timeline)
           let phase = 0;
           if (tTime >= 8.5) phase = 3;
           else if (tTime >= 6.5) phase = 2;
@@ -226,16 +219,16 @@ export default function CarShowcase() {
     }, container);
 
     return () => {
-      if (seekRafId) cancelAnimationFrame(seekRafId);
-      if (video) video.removeEventListener('seeked', handleSeeked);
+      if (rafId) cancelAnimationFrame(rafId);
+      video.removeEventListener('seeked', handleSeeked);
       ctx.revert();
     };
-  }, [videoDuration]);
+  }, []);
 
   // Jump to specific phase on step click
   const handleJumpToPhase = useCallback((index) => {
     if (!scrollTriggerInstance.current) return;
-    const dur = videoDuration || 12.192;
+    const dur = durationRef.current || 12.192;
     const targetTime = SHOWCASE_PHASES[index].startTime + 0.1;
     const targetProgress = Math.min(Math.max(targetTime / dur, 0), 1);
 
@@ -246,7 +239,7 @@ export default function CarShowcase() {
       top: targetScrollY,
       behavior: 'smooth'
     });
-  }, [videoDuration]);
+  }, []);
 
   const activePhase = SHOWCASE_PHASES[activePhaseIndex];
 
@@ -290,7 +283,8 @@ export default function CarShowcase() {
           poster="/images/car-showcase-poster.jpg"
           muted
           playsInline
-          preload="metadata"
+          autoPlay={false}
+          preload="auto"
           disablePictureInPicture
           disableRemotePlayback
           className="relative h-full max-h-[86vh] sm:max-h-[92vh] w-auto max-w-full object-contain pointer-events-none select-none"
