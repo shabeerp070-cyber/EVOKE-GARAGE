@@ -85,6 +85,12 @@ export default function CarShowcase() {
       ambient.playsInline = true;
     }
 
+    const isMobile = window.innerWidth < 768;
+    const targetSrc = isMobile ? '/videos/evoke-car-cinematic-mobile.mp4' : '/videos/evoke-car-cinematic.mp4';
+    if (!video.src || !video.src.includes(targetSrc)) {
+      video.src = targetSrc;
+    }
+
     const handleLoadedMetadata = () => {
       const dur = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 12.192;
       setVideoDuration(dur);
@@ -146,9 +152,17 @@ export default function CarShowcase() {
       const timeDiff = Math.abs(video.currentTime - targetTime);
       if (timeDiff > 0.02) {
         try {
-          video.currentTime = targetTime;
+          if (typeof video.fastSeek === 'function') {
+            video.fastSeek(targetTime);
+          } else {
+            video.currentTime = targetTime;
+          }
           if (ambient && !isMobile && ambient.readyState >= 2 && !ambient.seeking) {
-            ambient.currentTime = targetTime;
+            if (typeof ambient.fastSeek === 'function') {
+              ambient.fastSeek(targetTime);
+            } else {
+              ambient.currentTime = targetTime;
+            }
           }
         } catch (_) {}
       }
@@ -273,14 +287,15 @@ export default function CarShowcase() {
       <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
         <video
           ref={videoRef}
-          poster="/images/hero-video-poster.jpg"
+          poster="/images/car-showcase-poster.jpg"
           muted
           playsInline
-          preload="auto"
+          preload="metadata"
           disablePictureInPicture
           disableRemotePlayback
           className="relative h-full max-h-[86vh] sm:max-h-[92vh] w-auto max-w-full object-contain pointer-events-none select-none"
         >
+          <source src="/videos/evoke-car-cinematic-mobile.mp4" media="(max-width: 767px)" type="video/mp4" />
           <source src="/videos/evoke-car-cinematic.mp4" type="video/mp4" />
         </video>
 

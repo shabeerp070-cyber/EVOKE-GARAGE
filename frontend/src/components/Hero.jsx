@@ -85,28 +85,31 @@ export default function Hero({ onOpenBooking, onNavigateProducts }) {
           Professional Automotive Care. Precision in Every Detail.
         </p>
 
-        {/* Action Buttons */}
-        <div className="mt-4 sm:mt-7 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-4 w-full sm:w-auto max-w-[calc(100%-3.25rem)] sm:max-w-none">
+        {/* Action Buttons: Centered horizontally with equal width & spacing on mobile */}
+        <div className="mt-5 sm:mt-7 self-center sm:self-start w-full max-w-[320px] sm:max-w-none mx-auto sm:mx-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-center sm:justify-start gap-2.5 sm:gap-4">
+          {/* Mobile Order 2 // Desktop Order 1: EXPLORE SHOWCASE */}
           <button
             onClick={() => scrollToSection('showcase')}
-            className="w-full sm:w-auto !min-h-[44px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group shadow-xl bg-black text-white border border-white hover:bg-white hover:text-black transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
+            className="order-2 sm:order-1 w-full sm:w-auto !min-h-[46px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group shadow-xl bg-black text-white border border-white hover:bg-white hover:text-black transition-all duration-300 flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
           >
             <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:text-black transition-colors" />
             <span>EXPLORE SHOWCASE</span>
             <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:text-black group-hover:translate-y-1 transition-transform" />
           </button>
 
+          {/* Mobile Order 3 // Desktop Order 2: BOOK CONSULTATION */}
           <button
             onClick={() => onOpenBooking?.()}
-            className="w-full sm:w-auto !min-h-[44px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group bg-black/85 text-white border border-white/40 hover:bg-white hover:text-black hover:border-white transition-all duration-300 backdrop-blur-sm shadow-xl flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
+            className="order-3 sm:order-2 w-full sm:w-auto !min-h-[46px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group bg-black/85 text-white border border-white/40 hover:bg-white hover:text-black hover:border-white transition-all duration-300 backdrop-blur-sm shadow-xl flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
           >
             <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:text-black transition-colors" />
             <span>BOOK CONSULTATION</span>
           </button>
 
+          {/* Mobile Order 1 // Desktop Order 3: PRODUCTS */}
           <button
             onClick={() => onNavigateProducts?.()}
-            className="w-full sm:w-auto !min-h-[44px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group bg-black/85 text-white border border-white/40 hover:bg-white hover:text-black hover:border-white transition-all duration-300 backdrop-blur-sm shadow-xl flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
+            className="order-1 sm:order-3 w-full sm:w-auto !min-h-[46px] sm:!min-h-[52px] !px-4 sm:!px-7 text-xs sm:text-sm cursor-pointer group bg-black/85 text-white border border-white/40 hover:bg-white hover:text-black hover:border-white transition-all duration-300 backdrop-blur-sm shadow-xl flex items-center justify-center gap-2 sm:gap-2.5 font-tech font-bold uppercase tracking-wider active:scale-[0.98]"
           >
             <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white group-hover:text-black transition-colors" />
             <span>PRODUCTS</span>
