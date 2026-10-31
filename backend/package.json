@@ -1,0 +1,22 @@
+{
+  "name": "evoke-garage-backend",
+  "version": "1.0.0",
+  "description": "EVOKE GARAGE Official Booking API & WhatsApp Integration Service",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "evoke_garage": "file:..",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.9.5",
+    "multer": "^2.5.0"
+  }
+}

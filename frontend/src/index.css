@@ -1,0 +1,351 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --brand-bc1: #000000;  /* Pure Black */
+    --brand-bc2: #0A0A0A;  /* Secondary Dark Surface */
+    --brand-bc3: #888888;  /* Neutral Atelier Grey (10%) */
+    --brand-bc4: #E5E5E5;  /* Architectural Hairline Border Grey */
+    --brand-bc5: #FFFFFF;  /* Crisp Pure White (60%) */
+    --global-white: #ffffff;
+    --global-black: #000000;
+    --global-grey: #888888;
+
+    --font-heading: 'Syne', sans-serif;
+    --font-cinzel: 'Cinzel', serif;
+    --font-tech: 'Space Grotesk', monospace;
+    --font-body: 'Inter', sans-serif;
+
+    --easing-bezzy: cubic-bezier(0.8, 0, 0, 1);
+    --easing-bezzy2: cubic-bezier(0.430, 0.195, 0.020, 1);
+    --easing-bezzy3: cubic-bezier(0.5, 0, 0, 1);
+  }
+
+  html {
+    scroll-behavior: auto;
+    background-color: var(--brand-bc1);
+    color: var(--brand-bc5);
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--brand-bc1);
+    color: var(--brand-bc5);
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent iOS automatic zoom on form input focus and ensure crisp legibility */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: 0.95rem;
+    }
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: var(--font-heading);
+    letter-spacing: -0.03em;
+  }
+
+  .font-cinzel {
+    font-family: var(--font-cinzel);
+  }
+
+  .font-tech {
+    font-family: var(--font-tech);
+  }
+}
+
+/* Custom Scrollbar - Minimal Monochrome */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #888888;
+}
+
+/* ========================================================================= */
+/* MOBILE HEADER & SUB-BAR DOWNWARD ADJUSTMENT (28px - 32px safe offset)     */
+/* ========================================================================= */
+@media (max-width: 639px) {
+  header.site-header {
+    padding-top: 2.65rem !important; /* ~42px total, moving header down by ~26-30px */
+    padding-bottom: 0.85rem !important;
+  }
+
+  #top {
+    padding-top: 112px !important; /* Moving status sub-bar down in unison */
+  }
+}
+
+/* ========================================================================= */
+/* HERO CONTENT POSITIONING                                                  */
+/* ========================================================================= */
+@media (max-width: 639px) {
+  .hero-content-group {
+    padding-top: 0 !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .hero-content-group {
+    padding-top: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-content-group {
+    padding-top: 0 !important;
+  }
+}
+
+/* Subtle Architectural Grain Overlay */
+.bg-grain {
+  background-image: radial-gradient(rgba(136, 136, 136, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.bg-grain-dark {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Architectural Hairline Borders */
+.border-hairline {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.border-hairline-dark {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.border-hairline-light {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ========================================================================= */
+/* BLACK AND WHITE BUTTONS: BLACK BACKGROUND WITH SMOOTH INVERTED HOVER     */
+/* ========================================================================= */
+.btn-forge-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.8rem;
+  min-height: 50px;
+  background-color: #000000;
+  color: #FFFFFF;
+  font-family: var(--font-tech);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: all 0.35s ease;
+  border: 1px solid #FFFFFF;
+  overflow: hidden;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+@media (min-width: 640px) {
+  .btn-forge-primary {
+    font-size: 0.875rem;
+    padding: 1.05rem 2.5rem;
+    gap: 0.85rem;
+    letter-spacing: 0.2em;
+    min-height: 52px;
+  }
+}
+
+.btn-forge-primary:hover {
+  background-color: #FFFFFF;
+  color: #000000;
+  border-color: #000000;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.2);
+}
+
+.btn-forge-primary:active {
+  transform: scale(0.98);
+}
+
+/* Button variant for White background sections */
+.btn-forge-on-white {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.8rem;
+  min-height: 50px;
+  background-color: #000000;
+  color: #FFFFFF;
+  font-family: var(--font-tech);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: all 0.35s ease;
+  border: 1px solid #000000;
+  overflow: hidden;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+@media (min-width: 640px) {
+  .btn-forge-on-white {
+    font-size: 0.875rem;
+    padding: 1.05rem 2.5rem;
+    gap: 0.85rem;
+    letter-spacing: 0.2em;
+    min-height: 52px;
+  }
+}
+
+.btn-forge-on-white:hover {
+  background-color: #FFFFFF;
+  color: #000000;
+  border-color: #000000;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.btn-forge-on-white:active {
+  transform: scale(0.98);
+}
+
+/* Outline button on Dark sections */
+.btn-forge-outline {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.8rem;
+  min-height: 50px;
+  background-color: #000000;
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-family: var(--font-tech);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: all 0.35s ease;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+@media (min-width: 640px) {
+  .btn-forge-outline {
+    font-size: 0.875rem;
+    padding: 1.05rem 2.5rem;
+    gap: 0.85rem;
+    letter-spacing: 0.2em;
+    min-height: 52px;
+  }
+}
+
+.btn-forge-outline:hover {
+  border-color: #FFFFFF;
+  background-color: #FFFFFF;
+  color: #000000;
+  box-shadow: 0 4px 25px rgba(255, 255, 255, 0.15);
+}
+
+.btn-forge-outline:active {
+  transform: scale(0.98);
+}
+
+/* Outline button on White sections */
+.btn-forge-outline-on-white {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.95rem 1.8rem;
+  min-height: 50px;
+  background-color: transparent;
+  color: #000000;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  font-family: var(--font-tech);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: all 0.35s ease;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+@media (min-width: 640px) {
+  .btn-forge-outline-on-white {
+    font-size: 0.875rem;
+    padding: 1.05rem 2.5rem;
+    gap: 0.85rem;
+    letter-spacing: 0.2em;
+    min-height: 52px;
+  }
+}
+
+.btn-forge-outline-on-white:hover {
+  border-color: #000000;
+  background-color: #000000;
+  color: #FFFFFF;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.btn-forge-outline-on-white:active {
+  transform: scale(0.98);
+}
+
+/* Line mask for GSAP text reveals */
+.line-mask {
+  overflow: hidden;
+  display: block;
+}
+
+/* Lenis Recommended CSS */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+/* Reduced Motion Support for Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
