@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ArrowUpRight, Phone, MessageSquare } from 'lucide-react';
+import { Menu, X, ArrowUpRight, Phone, MessageSquare, ShoppingBag } from 'lucide-react';
 import { siteConfig } from '../config/siteConfig';
 
-export default function Navbar({ onOpenBooking }) {
+export default function Navbar({
+  onOpenBooking,
+  onNavigateProducts,
+  mobileMenuOpen: externalMobileMenuOpen,
+  setMobileMenuOpen: externalSetMobileMenuOpen
+}) {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [internalMenuOpen, setInternalMenuOpen] = useState(false);
+  const mobileMenuOpen = externalMobileMenuOpen !== undefined ? externalMobileMenuOpen : internalMenuOpen;
+  const setMobileMenuOpen = externalSetMobileMenuOpen || setInternalMenuOpen;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,19 +41,24 @@ export default function Navbar({ onOpenBooking }) {
       document.documentElement.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen, setMobileMenuOpen]);
 
   const navLinks = [
     { name: 'Philosophy', href: '#about' },
     { name: 'Showcase', href: '#showcase' },
     { name: 'Services', href: '#services' },
+    { name: 'Products', href: '/products', isProduct: true },
     { name: 'Contact', href: '#contact' },
   ];
 
-  const handleLinkClick = (e, href) => {
+  const handleLinkClick = (e, link) => {
     e.preventDefault();
     setMobileMenuOpen(false);
-    const target = document.querySelector(href);
+    if (link.isProduct) {
+      onNavigateProducts?.();
+      return;
+    }
+    const target = document.querySelector(link.href);
     if (target) {
       target.scrollIntoView({ behavior: 'smooth' });
     }
@@ -55,15 +67,43 @@ export default function Navbar({ onOpenBooking }) {
   return (
     <>
       <header
-        className={`site-header fixed top-0 left-0 right-0 z-50 transition-all duration-400 select-none ${
+        className={`site-header fixed top-0 left-0 right-0 z-50 transition-all duration-300 select-none ${
           isScrolled
-            ? 'bg-black/95 backdrop-blur-xl border-b border-white/10 py-2.5 sm:py-4 shadow-xl shadow-black/80'
-            : 'bg-gradient-to-b from-black via-black/80 to-transparent py-3 sm:py-6'
+            ? 'block bg-black/95 backdrop-blur-xl border-b border-white/10 py-2.5 sm:py-4 shadow-xl shadow-black/80'
+            : 'hidden lg:block bg-gradient-to-b from-black via-black/80 to-transparent py-3 sm:py-6'
         }`}
       >
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 flex items-center justify-between">
-          {/* Brand Logo & Name */}
-          <a href="#" className="flex items-center gap-2 sm:gap-3.5 group min-h-[40px] sm:min-h-[44px] flex-shrink-0">
+          {/* Mobile Header (Below lg: Hamburger Left, Centered Brand & Location, Shopping Bag Right) */}
+          <div className="flex lg:hidden items-center justify-between w-full">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 -ml-1 text-white hover:text-zinc-300 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5 stroke-[1.5]" />
+            </button>
+
+            <div className="flex flex-col items-center justify-center text-center px-1">
+              <span className="font-heading font-black tracking-[0.16em] text-xs text-white uppercase leading-none">
+                {siteConfig.brand.name}
+              </span>
+              <span className="text-[7.5px] font-tech text-zinc-400 tracking-[0.14em] uppercase mt-0.5 font-medium">
+                OTTAPALAM · PALAKKAD · KERALA
+              </span>
+            </div>
+
+            <button
+              onClick={() => onNavigateProducts?.()}
+              className="p-1.5 -mr-1 text-white hover:text-zinc-300 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
+              aria-label="View Products Catalogue"
+            >
+              <ShoppingBag className="w-5 h-5 stroke-[1.5]" />
+            </button>
+          </div>
+
+          {/* Desktop Brand Logo & Name (Visible on lg+) */}
+          <a href="#" className="hidden lg:flex items-center gap-2 sm:gap-3.5 group min-h-[40px] sm:min-h-[44px] flex-shrink-0">
             <div className="w-7.5 h-7.5 sm:w-11 sm:h-11 rounded-full p-0.5 bg-white/10 ring-1 ring-white/20 group-hover:ring-white/60 transition-all flex-shrink-0">
               <img
                 src={siteConfig.brand.logoCircle}
@@ -89,7 +129,7 @@ export default function Navbar({ onOpenBooking }) {
               <a
                 key={link.name}
                 href={link.href}
-                onClick={(e) => handleLinkClick(e, link.href)}
+                onClick={(e) => handleLinkClick(e, link)}
                 className="hover:text-white transition-colors relative py-1.5 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-white hover:after:w-full after:transition-all after:duration-300"
               >
                 {link.name}
@@ -121,25 +161,6 @@ export default function Navbar({ onOpenBooking }) {
               <ArrowUpRight className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Mobile & Tablet Header Controls (Visible below lg) */}
-          <div className="flex items-center gap-1.5 sm:gap-3 lg:hidden flex-shrink-0">
-            <button
-              onClick={() => onOpenBooking?.()}
-              className="px-3 py-1.5 min-h-[36px] sm:min-h-[42px] bg-black text-white border border-white font-tech text-xs sm:text-sm uppercase tracking-wider font-bold rounded-none hover:bg-white hover:text-black active:scale-95 transition-all duration-300 cursor-pointer whitespace-nowrap"
-            >
-              INQUIRE
-            </button>
-
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center text-white bg-black border border-white/20 rounded-none hover:border-white focus:outline-none cursor-pointer flex-shrink-0"
-              aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
-              aria-expanded={mobileMenuOpen}
-            >
-              {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5 text-white" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5 text-white" />}
-            </button>
-          </div>
         </div>
       </header>
 
@@ -155,22 +176,32 @@ export default function Navbar({ onOpenBooking }) {
           >
             <div className="space-y-6">
               {/* Header Branding in Drawer */}
-              <div className="border-b border-white/10 pb-4 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full p-0.5 bg-white/10 ring-1 ring-white/20 flex-shrink-0">
-                  <img
-                    src={siteConfig.brand.logoCircle}
-                    alt="EVOKE GARAGE"
-                    className="w-full h-full object-contain rounded-full"
-                  />
+              <div className="border-b border-white/10 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full p-0.5 bg-white/10 ring-1 ring-white/20 flex-shrink-0">
+                    <img
+                      src={siteConfig.brand.logoCircle}
+                      alt="EVOKE GARAGE"
+                      className="w-full h-full object-contain rounded-full"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-black text-xl sm:text-2xl text-white tracking-widest uppercase">
+                      {siteConfig.brand.name}
+                    </h3>
+                    <p className="text-xs sm:text-sm font-tech text-zinc-300 tracking-wider uppercase font-medium mt-0.5">
+                      OTTAPALAM · PALAKKAD · KERALA
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-heading font-black text-xl sm:text-2xl text-white tracking-widest uppercase">
-                    {siteConfig.brand.name}
-                  </h3>
-                  <p className="text-xs sm:text-sm font-tech text-zinc-300 tracking-wider uppercase font-medium mt-0.5">
-                    OTTAPALAM · PALAKKAD · KERALA
-                  </p>
-                </div>
+
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 text-white hover:text-zinc-400 cursor-pointer"
+                  aria-label="Close Navigation Menu"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
 
               {/* Navigation Links with Large Tap Targets */}

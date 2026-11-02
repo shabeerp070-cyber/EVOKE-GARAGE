@@ -60,6 +60,18 @@ export const SHOWCASE_PHASES = [
 const TOTAL_FRAMES = 357;
 const PHASE_START_FRAMES = [0, 132, 191, 249];
 
+// Backbone anchor frames every 6th index to guarantee seamless nearest-frame fallback everywhere
+const BACKBONE_STEP = 6;
+const BACKBONE_INDICES = new Set();
+for (let i = 0; i < TOTAL_FRAMES; i += BACKBONE_STEP) {
+  BACKBONE_INDICES.add(i);
+}
+BACKBONE_INDICES.add(TOTAL_FRAMES - 1);
+PHASE_START_FRAMES.forEach(idx => BACKBONE_INDICES.add(idx));
+
+const MAX_CONCURRENT_REQUESTS = 4;
+const MAX_CACHE_SIZE = 70;
+
 const getFrameSrc = (index, isMobile) => {
   const folder = isMobile ? '/showcase-frames-mobile-webp' : '/showcase-frames-webp';
   const num = String(index + 1).padStart(3, '0');
@@ -71,160 +83,260 @@ export default function CarShowcase() {
   const canvasRef = useRef(null);
   const glowRef = useRef(null);
 
-  const imagesRef = useRef(new Array(TOTAL_FRAMES));
-  const requestedRef = useRef(new Array(TOTAL_FRAMES).fill(false));
-  const lastDrawnIndexRef = useRef(-1);
+  // High-performance image cache & request control
+  const cacheRef = useRef(new Map());
+  const requestedSetRef = useRef(new Set());
+  const activeRequestsRef = useRef(0);
+  const queueRef = useRef([]);
+
   const targetFrameRef = useRef(0);
-  const rafIdRef = useRef(null);
+  const renderedFrameRef = useRef(-1);
+  const lastDrawnImgRef = useRef(null);
+  const scrollDirectionRef = useRef(1); // 1 = down, -1 = up
+  const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const currentPhaseRef = useRef(0);
   const scrollTriggerInstance = useRef(null);
-  const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const rafIdRef = useRef(null);
+  const isVisibleRef = useRef(false);
 
   const [activePhaseIndex, setActivePhaseIndex] = useState(0);
 
-  // Core render method: draws target frame or closest available loaded frame
-  const drawFrame = useCallback((index) => {
+  // Helper to find closest available loaded frame in cache
+  const findClosestLoadedImage = useCallback((index) => {
+    const cache = cacheRef.current;
+    if (cache.has(index)) {
+      const img = cache.get(index);
+      if (img && img.complete && img.naturalWidth > 0) return img;
+    }
+
+    // Bidirectional search outward
+    for (let offset = 1; offset < 30; offset++) {
+      const prevIdx = index - offset;
+      if (prevIdx >= 0 && cache.has(prevIdx)) {
+        const img = cache.get(prevIdx);
+        if (img && img.complete && img.naturalWidth > 0) return img;
+      }
+      const nextIdx = index + offset;
+      if (nextIdx < TOTAL_FRAMES && cache.has(nextIdx)) {
+        const img = cache.get(nextIdx);
+        if (img && img.complete && img.naturalWidth > 0) return img;
+      }
+    }
+
+    return lastDrawnImgRef.current;
+  }, []);
+
+  // Hardware-accelerated canvas paint (direct Blit without re-allocating context or buffers)
+  const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    let img = imagesRef.current[index];
-
-    // If target image is not loaded yet, find nearest loaded image
-    if (!img || !img.complete || img.naturalWidth === 0) {
-      // 1. Try last drawn image
-      const lastIdx = lastDrawnIndexRef.current;
-      if (lastIdx >= 0 && imagesRef.current[lastIdx]?.complete && imagesRef.current[lastIdx]?.naturalWidth > 0) {
-        img = imagesRef.current[lastIdx];
-      } else {
-        // 2. Search backward
-        for (let i = index - 1; i >= 0; i--) {
-          const candidate = imagesRef.current[i];
-          if (candidate && candidate.complete && candidate.naturalWidth > 0) {
-            img = candidate;
-            break;
-          }
-        }
-        // 3. Search forward
-        if (!img) {
-          for (let i = index + 1; i < TOTAL_FRAMES; i++) {
-            const candidate = imagesRef.current[i];
-            if (candidate && candidate.complete && candidate.naturalWidth > 0) {
-              img = candidate;
-              break;
-            }
-          }
-        }
-      }
-    }
+    const targetIdx = targetFrameRef.current;
+    const img = findClosestLoadedImage(targetIdx);
 
     if (img && img.complete && img.naturalWidth > 0) {
       if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
       }
-      ctx.drawImage(img, 0, 0);
-      lastDrawnIndexRef.current = index;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      renderedFrameRef.current = targetIdx;
+      lastDrawnImgRef.current = img;
+    }
+  }, [findClosestLoadedImage]);
+
+  // Pump queue with concurrency limiting
+  const processQueue = useCallback(() => {
+    const queue = queueRef.current;
+    const cache = cacheRef.current;
+    const isMobile = isMobileRef.current;
+
+    while (activeRequestsRef.current < MAX_CONCURRENT_REQUESTS && queue.length > 0) {
+      const index = queue.shift();
+      if (cache.has(index)) continue;
+
+      activeRequestsRef.current++;
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = getFrameSrc(index, isMobile);
+
+      img.onload = () => {
+        activeRequestsRef.current--;
+        cache.set(index, img);
+
+        // Immediate repaint if target frame is close to this newly loaded image
+        if (Math.abs(targetFrameRef.current - index) <= 2) {
+          renderCanvas();
+        }
+
+        processQueue();
+      };
+
+      img.onerror = () => {
+        activeRequestsRef.current--;
+        // Robust fallback to uncompressed JPG if WebP fails
+        const fallback = new Image();
+        fallback.decoding = 'async';
+        fallback.src = `/showcase-frames/frame_${String(index + 9).padStart(3, '0')}.jpg`;
+        fallback.onload = () => {
+          cache.set(index, fallback);
+          if (Math.abs(targetFrameRef.current - index) <= 2) {
+            renderCanvas();
+          }
+        };
+        processQueue();
+      };
+    }
+  }, [renderCanvas]);
+
+  // Request a frame with optional unshift priority
+  const requestFrame = useCallback((index, highPriority = false) => {
+    if (index < 0 || index >= TOTAL_FRAMES) return;
+    if (requestedSetRef.current.has(index)) return;
+
+    requestedSetRef.current.add(index);
+    if (highPriority) {
+      queueRef.current.unshift(index);
+    } else {
+      queueRef.current.push(index);
+    }
+    processQueue();
+  }, [processQueue]);
+
+  // Sliding-window memory eviction (prevents mobile memory pressure & context loss)
+  const evictExcessFrames = useCallback((currentCenter) => {
+    const cache = cacheRef.current;
+    if (cache.size <= MAX_CACHE_SIZE) return;
+
+    // Collect candidates that are not backbone anchors and far from currentCenter
+    for (const [idx, img] of cache.entries()) {
+      if (BACKBONE_INDICES.has(idx)) continue; // Never evict anchor frames
+      if (Math.abs(idx - currentCenter) > 28) {
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+        cache.delete(idx);
+        requestedSetRef.current.delete(idx);
+      }
     }
   }, []);
 
-  // Request & draw scheduling via RAF
-  const scheduleDraw = useCallback(() => {
-    if (rafIdRef.current !== null) return;
-    rafIdRef.current = requestAnimationFrame(() => {
-      rafIdRef.current = null;
-      drawFrame(targetFrameRef.current);
-    });
-  }, [drawFrame]);
+  // Directional lookahead prioritization based on scrolling
+  const prioritizeWindow = useCallback((centerIdx, direction) => {
+    const queue = queueRef.current;
+    const requested = requestedSetRef.current;
 
-  // Load a single frame by index
-  const loadFrame = useCallback((index, isMobile, onComplete) => {
-    if (index < 0 || index >= TOTAL_FRAMES) return;
-    if (requestedRef.current[index]) {
-      if (imagesRef.current[index]?.complete && onComplete) {
-        onComplete(imagesRef.current[index]);
+    // Build directional window:
+    // When scrolling down (dir = 1): lookahead forward [+1 .. +14], backward [-2 .. -1]
+    // When scrolling up (dir = -1): lookahead backward [-1 .. -14], forward [+1 .. +2]
+    const prioritized = [];
+
+    // Target frame itself first
+    if (!requested.has(centerIdx)) prioritized.push(centerIdx);
+
+    if (direction >= 0) {
+      // Forward bias
+      for (let offset = 1; offset <= 14; offset++) {
+        const fwd = centerIdx + offset;
+        if (fwd < TOTAL_FRAMES && !requested.has(fwd)) prioritized.push(fwd);
+        if (offset <= 3) {
+          const bwd = centerIdx - offset;
+          if (bwd >= 0 && !requested.has(bwd)) prioritized.push(bwd);
+        }
       }
-      return;
+    } else {
+      // Backward bias
+      for (let offset = 1; offset <= 14; offset++) {
+        const bwd = centerIdx - offset;
+        if (bwd >= 0 && !requested.has(bwd)) prioritized.push(bwd);
+        if (offset <= 3) {
+          const fwd = centerIdx + offset;
+          if (fwd < TOTAL_FRAMES && !requested.has(fwd)) prioritized.push(fwd);
+        }
+      }
     }
-    requestedRef.current[index] = true;
 
-    const img = new Image();
-    img.decoding = 'async';
-    img.src = getFrameSrc(index, isMobile);
-    img.onload = () => {
-      imagesRef.current[index] = img;
-      if (onComplete) onComplete(img);
-      // Redraw if this frame is currently targeted
-      if (Math.abs(targetFrameRef.current - index) <= 1) {
-        scheduleDraw();
+    if (prioritized.length > 0) {
+      prioritized.forEach(idx => requested.add(idx));
+      // Put at head of queue
+      queueRef.current = [...prioritized, ...queue];
+      processQueue();
+    }
+
+    // Keep memory bounded
+    evictExcessFrames(centerIdx);
+  }, [processQueue, evictExcessFrames]);
+
+  // Continuous RAF synchronization loop (smooth 60fps+ rendering synced with VSync)
+  useEffect(() => {
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      if (renderedFrameRef.current !== targetFrameRef.current) {
+        renderCanvas();
       }
+      rafIdRef.current = requestAnimationFrame(tick);
     };
-    img.onerror = () => {
-      // Fallback to uncompressed source frame if webp fails
-      const fallbackSrc = `/showcase-frames/frame_${String(index + 9).padStart(3, '0')}.jpg`;
-      img.src = fallbackSrc;
-    };
-  }, [scheduleDraw]);
 
-  // Preloading lifecycle
+    rafIdRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      active = false;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, [renderCanvas]);
+
+  // Initial Preloader Lifecycle
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
     isMobileRef.current = isMobile;
 
-    // 1. Highest Priority: Load frame 0 immediately and draw it as soon as ready
-    loadFrame(0, isMobile, () => {
-      drawFrame(0);
-    });
-
-    // 2. High Priority: First 25 frames
-    for (let i = 1; i <= 25; i++) {
-      loadFrame(i, isMobile);
+    // 1. Critical Priority: Frame 0 and immediate surrounding frames
+    for (let i = 0; i <= 6; i++) {
+      requestFrame(i, true);
     }
 
-    // 3. High Priority: Phase transition milestone frames
-    PHASE_START_FRAMES.forEach(idx => loadFrame(idx, isMobile));
+    // 2. Background Priority: Staggered backbone anchor frames (every 6th frame)
+    let backboneArray = Array.from(BACKBONE_INDICES).filter(idx => idx > 6);
+    let bIndex = 0;
 
-    // 4. Background queue for the remaining frames
-    let currentLoadIndex = 26;
     const intervalId = setInterval(() => {
-      if (currentLoadIndex >= TOTAL_FRAMES) {
+      if (bIndex >= backboneArray.length) {
         clearInterval(intervalId);
         return;
       }
-      const batchEnd = Math.min(currentLoadIndex + 6, TOTAL_FRAMES);
-      for (let i = currentLoadIndex; i < batchEnd; i++) {
-        loadFrame(i, isMobile);
+      // Load 2 backbone frames per tick to avoid saturating network
+      for (let k = 0; k < 2 && bIndex < backboneArray.length; k++, bIndex++) {
+        requestFrame(backboneArray[bIndex], false);
       }
-      currentLoadIndex = batchEnd;
-    }, 60);
+    }, 45);
 
     const handleResize = () => {
       const currentIsMobile = window.innerWidth < 768;
       if (currentIsMobile !== isMobileRef.current) {
         isMobileRef.current = currentIsMobile;
-        imagesRef.current = new Array(TOTAL_FRAMES);
-        requestedRef.current = new Array(TOTAL_FRAMES).fill(false);
-        loadFrame(targetFrameRef.current, currentIsMobile, () => {
-          drawFrame(targetFrameRef.current);
-        });
-      } else {
-        drawFrame(targetFrameRef.current);
+        // Clear non-anchors and reload current frame in new resolution
+        cacheRef.current.clear();
+        requestedSetRef.current.clear();
+        queueRef.current = [];
+        requestFrame(targetFrameRef.current, true);
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
 
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('resize', handleResize);
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
     };
-  }, [loadFrame, drawFrame]);
+  }, [requestFrame]);
 
-  // GSAP ScrollTrigger pinning and scroll-scrubbed frame coordination
+  // GSAP ScrollTrigger pinning and bidirectional scroll scrub
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -240,26 +352,24 @@ export default function CarShowcase() {
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
-        scrub: 0.05, // Instant response with silky inertial smoothing
+        scrub: true, // Direct 1:1 synchronization with smooth Lenis
         invalidateOnRefresh: true,
+        onToggle: (self) => {
+          isVisibleRef.current = self.isActive;
+        },
         onUpdate: (self) => {
           const progress = Math.max(0, Math.min(1, self.progress));
-          const frameIndex = Math.min(TOTAL_FRAMES - 1, Math.floor(progress * (TOTAL_FRAMES - 1)));
+          const frameIndex = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.floor(progress * (TOTAL_FRAMES - 1))));
 
+          const prevFrame = targetFrameRef.current;
+          const direction = frameIndex >= prevFrame ? 1 : -1;
+          scrollDirectionRef.current = direction;
           targetFrameRef.current = frameIndex;
 
-          // Prioritize loading near current scroll position
-          const isMobileDevice = isMobileRef.current;
-          for (let offset = -1; offset <= 4; offset++) {
-            const idx = frameIndex + offset;
-            if (idx >= 0 && idx < TOTAL_FRAMES && !requestedRef.current[idx]) {
-              loadFrame(idx, isMobileDevice);
-            }
-          }
+          // Prioritize directional lookahead window
+          prioritizeWindow(frameIndex, direction);
 
-          scheduleDraw();
-
-          // Determine current phase from frame index
+          // Fast phase detection without unnecessary React re-renders
           let phase = 0;
           if (frameIndex >= 249) phase = 3;
           else if (frameIndex >= 191) phase = 2;
@@ -281,7 +391,7 @@ export default function CarShowcase() {
     return () => {
       ctx.revert();
     };
-  }, [loadFrame, scheduleDraw]);
+  }, [prioritizeWindow]);
 
   // Jump to specific phase on step click
   const handleJumpToPhase = useCallback((index) => {

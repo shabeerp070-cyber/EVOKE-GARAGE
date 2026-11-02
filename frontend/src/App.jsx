@@ -52,6 +52,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -182,7 +183,12 @@ export default function App() {
       />
 
       {/* Minimalist Forge-Style Navigation */}
-      <Navbar onOpenBooking={() => handleOpenBooking()} />
+      <Navbar
+        onOpenBooking={() => handleOpenBooking()}
+        onNavigateProducts={handleNavigateProducts}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
+      />
 
       <main className="relative overflow-x-clip">
         {/* Continuous BMW Drift Trajectory across Three Pillars & Core Disciplines */}
@@ -192,6 +198,7 @@ export default function App() {
         <Hero
           onOpenBooking={() => handleOpenBooking()}
           onNavigateProducts={handleNavigateProducts}
+          onOpenMenu={() => setMobileMenuOpen(true)}
         />
 
         {/* B. IMMERSIVE CAR SHOWCASE (Scroll-Controlled Video Progression) */}

@@ -13,6 +13,8 @@
 
     --font-heading: 'Syne', sans-serif;
     --font-cinzel: 'Cinzel', serif;
+    --font-orbitron: 'Orbitron', sans-serif;
+    --font-rajdhani: 'Rajdhani', sans-serif;
     --font-tech: 'Space Grotesk', monospace;
     --font-body: 'Inter', sans-serif;
 
@@ -61,6 +63,14 @@
   .font-tech {
     font-family: var(--font-tech);
   }
+
+  .font-orbitron {
+    font-family: var(--font-orbitron);
+  }
+
+  .font-rajdhani {
+    font-family: var(--font-rajdhani);
+  }
 }
 
 /* Custom Scrollbar - Minimal Monochrome */
@@ -79,16 +89,11 @@
 }
 
 /* ========================================================================= */
-/* MOBILE HEADER & SUB-BAR DOWNWARD ADJUSTMENT (28px - 32px safe offset)     */
+/* MOBILE HEADER PADDING (CLEAN 0PX OFFSET FOR FULL-BLEED MOBILE HERO)       */
 /* ========================================================================= */
 @media (max-width: 639px) {
-  header.site-header {
-    padding-top: 2.65rem !important; /* ~42px total, moving header down by ~26-30px */
-    padding-bottom: 0.85rem !important;
-  }
-
   #top {
-    padding-top: 112px !important; /* Moving status sub-bar down in unison */
+    padding-top: 0 !important;
   }
 }
 
