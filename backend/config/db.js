@@ -1,29 +1,51 @@
 import mongoose from 'mongoose';
 
-/**
- * Connect to MongoDB Atlas / Local MongoDB instance
- */
-export const connectDB = async () => {
-  const uri = process.env.MONGODB_URI;
+let cached = global.mongoose;
 
-  if (!uri) {
-    console.warn(
-      '⚠️  [DATABASE WARNING]: MONGODB_URI is not defined in environment variables.\n' +
-      '   Please set MONGODB_URI in backend/.env to connect to MongoDB Atlas.'
-    );
-    return false;
-  }
-
-  try {
-    const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-    });
-
-    console.log(`✅ [MONGODB CONNECTED]: Host: ${conn.connection.host} | DB: ${conn.connection.name}`);
-    return true;
-  } catch (error) {
-    console.error(`❌ [MONGODB CONNECTION ERROR]: ${error.message}`);
-    return false;
-  }
+if (!cached) {
+cached = global.mongoose = {
+conn: null,
+promise: null,
 };
+}
 
+export const connectDB = async () => {
+const uri = process.env.MONGODB_URI;
+
+if (!uri) {
+console.error('MONGODB_URI is missing.');
+return false;
+}
+
+if (cached.conn && mongoose.connection.readyState === 1) {
+return true;
+}
+
+try {
+if (!cached.promise) {
+cached.promise = mongoose.connect(uri, {
+serverSelectionTimeoutMS: 10000,
+bufferCommands: false,
+});
+}
+
+```
+cached.conn = await cached.promise;
+
+console.log('MongoDB connected successfully.');
+
+return true;
+```
+
+} catch (error) {
+cached.promise = null;
+cached.conn = null;
+
+```
+console.error('MongoDB connection failed:', error.message);
+
+return false;
+```
+
+}
+};
