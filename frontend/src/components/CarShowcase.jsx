@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Eye, Gauge, Flame, Disc3, ArrowDown } from 'lucide-react';
+import { Eye, Gauge, Flame, Disc3 } from 'lucide-react';
 import { siteConfig } from '../config/siteConfig';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -57,120 +57,180 @@ export const SHOWCASE_PHASES = [
   }
 ];
 
+const TOTAL_FRAMES = 357;
+const PHASE_START_FRAMES = [0, 132, 191, 249];
+
+const getFrameSrc = (index, isMobile) => {
+  const folder = isMobile ? '/showcase-frames-mobile-webp' : '/showcase-frames-webp';
+  const num = String(index + 1).padStart(3, '0');
+  return `${folder}/frame_${num}.webp`;
+};
+
 export default function CarShowcase() {
   const containerRef = useRef(null);
-  const videoRef = useRef(null);
-  const ambientVideoRef = useRef(null);
+  const canvasRef = useRef(null);
   const glowRef = useRef(null);
-  const targetTimeRef = useRef(0);
-  const durationRef = useRef(12.192);
+
+  const imagesRef = useRef(new Array(TOTAL_FRAMES));
+  const requestedRef = useRef(new Array(TOTAL_FRAMES).fill(false));
+  const lastDrawnIndexRef = useRef(-1);
+  const targetFrameRef = useRef(0);
+  const rafIdRef = useRef(null);
   const currentPhaseRef = useRef(0);
   const scrollTriggerInstance = useRef(null);
+  const isMobileRef = useRef(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   const [activePhaseIndex, setActivePhaseIndex] = useState(0);
 
-  // Initialize and attach video
-  useEffect(() => {
-    const video = videoRef.current;
-    const ambient = ambientVideoRef.current;
-    if (!video) return;
+  // Core render method: draws target frame or closest available loaded frame
+  const drawFrame = useCallback((index) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
 
-    // Explicitly guarantee DOM property muted & playsInline for mobile autoplay policy
-    video.muted = true;
-    video.defaultMuted = true;
-    video.playsInline = true;
-    video.preload = 'auto';
+    let img = imagesRef.current[index];
 
-    if (ambient) {
-      ambient.muted = true;
-      ambient.defaultMuted = true;
-      ambient.playsInline = true;
-      ambient.preload = 'none';
+    // If target image is not loaded yet, find nearest loaded image
+    if (!img || !img.complete || img.naturalWidth === 0) {
+      // 1. Try last drawn image
+      const lastIdx = lastDrawnIndexRef.current;
+      if (lastIdx >= 0 && imagesRef.current[lastIdx]?.complete && imagesRef.current[lastIdx]?.naturalWidth > 0) {
+        img = imagesRef.current[lastIdx];
+      } else {
+        // 2. Search backward
+        for (let i = index - 1; i >= 0; i--) {
+          const candidate = imagesRef.current[i];
+          if (candidate && candidate.complete && candidate.naturalWidth > 0) {
+            img = candidate;
+            break;
+          }
+        }
+        // 3. Search forward
+        if (!img) {
+          for (let i = index + 1; i < TOTAL_FRAMES; i++) {
+            const candidate = imagesRef.current[i];
+            if (candidate && candidate.complete && candidate.naturalWidth > 0) {
+              img = candidate;
+              break;
+            }
+          }
+        }
+      }
     }
 
-    const isMobile = window.innerWidth < 768;
-    const targetSrc = isMobile ? '/videos/evoke-car-cinematic-mobile.mp4' : '/videos/evoke-car-cinematic.mp4';
-    if (!video.src || !video.src.includes(targetSrc)) {
-      video.src = targetSrc;
+    if (img && img.complete && img.naturalWidth > 0) {
+      if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.drawImage(img, 0, 0);
+      lastDrawnIndexRef.current = index;
     }
-
-    const handleLoadedMetadata = () => {
-      const dur = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 12.192;
-      durationRef.current = dur;
-      video.currentTime = 0.05;
-      if (ambient && window.innerWidth >= 1024) ambient.currentTime = 0.05;
-    };
-
-    if (video.readyState >= 1) {
-      handleLoadedMetadata();
-    } else {
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    }
-
-    if (video.readyState === 0) {
-      video.load();
-    }
-
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-    };
   }, []);
 
-  // GSAP ScrollTrigger timeline pinning full screen with hardware-friendly RAF seeking
+  // Request & draw scheduling via RAF
+  const scheduleDraw = useCallback(() => {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      drawFrame(targetFrameRef.current);
+    });
+  }, [drawFrame]);
+
+  // Load a single frame by index
+  const loadFrame = useCallback((index, isMobile, onComplete) => {
+    if (index < 0 || index >= TOTAL_FRAMES) return;
+    if (requestedRef.current[index]) {
+      if (imagesRef.current[index]?.complete && onComplete) {
+        onComplete(imagesRef.current[index]);
+      }
+      return;
+    }
+    requestedRef.current[index] = true;
+
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = getFrameSrc(index, isMobile);
+    img.onload = () => {
+      imagesRef.current[index] = img;
+      if (onComplete) onComplete(img);
+      // Redraw if this frame is currently targeted
+      if (Math.abs(targetFrameRef.current - index) <= 1) {
+        scheduleDraw();
+      }
+    };
+    img.onerror = () => {
+      // Fallback to uncompressed source frame if webp fails
+      const fallbackSrc = `/showcase-frames/frame_${String(index + 9).padStart(3, '0')}.jpg`;
+      img.src = fallbackSrc;
+    };
+  }, [scheduleDraw]);
+
+  // Preloading lifecycle
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    isMobileRef.current = isMobile;
+
+    // 1. Highest Priority: Load frame 0 immediately and draw it as soon as ready
+    loadFrame(0, isMobile, () => {
+      drawFrame(0);
+    });
+
+    // 2. High Priority: First 25 frames
+    for (let i = 1; i <= 25; i++) {
+      loadFrame(i, isMobile);
+    }
+
+    // 3. High Priority: Phase transition milestone frames
+    PHASE_START_FRAMES.forEach(idx => loadFrame(idx, isMobile));
+
+    // 4. Background queue for the remaining frames
+    let currentLoadIndex = 26;
+    const intervalId = setInterval(() => {
+      if (currentLoadIndex >= TOTAL_FRAMES) {
+        clearInterval(intervalId);
+        return;
+      }
+      const batchEnd = Math.min(currentLoadIndex + 6, TOTAL_FRAMES);
+      for (let i = currentLoadIndex; i < batchEnd; i++) {
+        loadFrame(i, isMobile);
+      }
+      currentLoadIndex = batchEnd;
+    }, 60);
+
+    const handleResize = () => {
+      const currentIsMobile = window.innerWidth < 768;
+      if (currentIsMobile !== isMobileRef.current) {
+        isMobileRef.current = currentIsMobile;
+        imagesRef.current = new Array(TOTAL_FRAMES);
+        requestedRef.current = new Array(TOTAL_FRAMES).fill(false);
+        loadFrame(targetFrameRef.current, currentIsMobile, () => {
+          drawFrame(targetFrameRef.current);
+        });
+      } else {
+        drawFrame(targetFrameRef.current);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('resize', handleResize);
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, [loadFrame, drawFrame]);
+
+  // GSAP ScrollTrigger pinning and scroll-scrubbed frame coordination
   useEffect(() => {
     const container = containerRef.current;
-    const video = videoRef.current;
-    const ambient = ambientVideoRef.current;
-    if (!container || !video) return;
+    if (!container) return;
 
     const isMobile = window.innerWidth < 1024;
     const scrollDistance = isMobile ? '+=180%' : '+=260%';
-
-    let rafId = null;
-    let isSectionActive = false;
-
-    // Synchronize video currentTime to the target scroll time via RAF
-    const syncVideo = () => {
-      rafId = null;
-      if (!video || video.readyState < 2) return;
-
-      const target = targetTimeRef.current;
-      const current = video.currentTime;
-      const diff = target - current;
-
-      // Only seek when difference exceeds ~half a frame at 30fps (0.016s)
-      if (Math.abs(diff) >= 0.016) {
-        if (!video.seeking) {
-          try {
-            video.currentTime = target;
-          } catch (_) {}
-        }
-      }
-
-      // Sync ambient video with lower frequency on desktop to eliminate decoder contention
-      if (ambient && !isMobile && ambient.readyState >= 2 && !ambient.seeking) {
-        if (Math.abs(target - ambient.currentTime) > 0.25) {
-          try {
-            ambient.currentTime = target;
-          } catch (_) {}
-        }
-      }
-    };
-
-    const scheduleSync = () => {
-      if (!rafId) {
-        rafId = requestAnimationFrame(syncVideo);
-      }
-    };
-
-    // When the browser finishes decoding the current seek, immediately catch up to latest target
-    const handleSeeked = () => {
-      if (video && Math.abs(targetTimeRef.current - video.currentTime) >= 0.016) {
-        scheduleSync();
-      }
-    };
-
-    video.addEventListener('seeked', handleSeeked);
 
     const ctx = gsap.context(() => {
       scrollTriggerInstance.current = ScrollTrigger.create({
@@ -180,30 +240,30 @@ export default function CarShowcase() {
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
-        scrub: true, // Direct 1:1 scroll synchronization (no artificial smoothing lag)
+        scrub: 0.05, // Instant response with silky inertial smoothing
         invalidateOnRefresh: true,
-        onToggle: (self) => {
-          isSectionActive = self.isActive;
-          if (self.isActive) {
-            const dur = durationRef.current || 12.192;
-            targetTimeRef.current = Math.min(Math.max(self.progress * dur, 0), dur - 0.02);
-            scheduleSync();
-          }
-        },
         onUpdate: (self) => {
-          if (!isSectionActive) return;
           const progress = Math.max(0, Math.min(1, self.progress));
-          const dur = durationRef.current || 12.192;
-          const tTime = Math.min(progress * dur, dur - 0.02);
+          const frameIndex = Math.min(TOTAL_FRAMES - 1, Math.floor(progress * (TOTAL_FRAMES - 1)));
 
-          targetTimeRef.current = tTime;
-          scheduleSync();
+          targetFrameRef.current = frameIndex;
 
-          // Determine current phase from targetTime (only 3 state updates across entire timeline)
+          // Prioritize loading near current scroll position
+          const isMobileDevice = isMobileRef.current;
+          for (let offset = -1; offset <= 4; offset++) {
+            const idx = frameIndex + offset;
+            if (idx >= 0 && idx < TOTAL_FRAMES && !requestedRef.current[idx]) {
+              loadFrame(idx, isMobileDevice);
+            }
+          }
+
+          scheduleDraw();
+
+          // Determine current phase from frame index
           let phase = 0;
-          if (tTime >= 8.5) phase = 3;
-          else if (tTime >= 6.5) phase = 2;
-          else if (tTime >= 4.5) phase = 1;
+          if (frameIndex >= 249) phase = 3;
+          else if (frameIndex >= 191) phase = 2;
+          else if (frameIndex >= 132) phase = 1;
           else phase = 0;
 
           if (phase !== currentPhaseRef.current) {
@@ -219,18 +279,15 @@ export default function CarShowcase() {
     }, container);
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      video.removeEventListener('seeked', handleSeeked);
       ctx.revert();
     };
-  }, []);
+  }, [loadFrame, scheduleDraw]);
 
   // Jump to specific phase on step click
   const handleJumpToPhase = useCallback((index) => {
     if (!scrollTriggerInstance.current) return;
-    const dur = durationRef.current || 12.192;
-    const targetTime = SHOWCASE_PHASES[index].startTime + 0.1;
-    const targetProgress = Math.min(Math.max(targetTime / dur, 0), 1);
+    const targetFrame = PHASE_START_FRAMES[index] || 0;
+    const targetProgress = targetFrame / (TOTAL_FRAMES - 1);
 
     const st = scrollTriggerInstance.current;
     const targetScrollY = st.start + (st.end - st.start) * targetProgress;
@@ -250,21 +307,8 @@ export default function CarShowcase() {
       className="relative w-full h-screen overflow-hidden bg-black text-white select-none flex items-center justify-center"
     >
       {/* ========================================================================= */}
-      {/* 1. SYNCHRONIZED AMBIENT BACKDROP LIGHT LAYER                              */}
+      {/* 1. SYNCHRONIZED ATMOSPHERIC AMBIENT BACKDROP LAYER                        */}
       {/* ========================================================================= */}
-      <video
-        ref={ambientVideoRef}
-        muted
-        playsInline
-        preload="none"
-        disablePictureInPicture
-        disableRemotePlayback
-        className="hidden lg:block absolute inset-0 w-full h-full object-cover filter blur-2xl lg:blur-3xl opacity-20 scale-110 pointer-events-none z-0 transform-gpu"
-      >
-        <source src="/videos/evoke-car-cinematic.mp4" type="video/mp4" />
-      </video>
-
-      {/* Atmospheric dynamic subtle monochrome glow */}
       <div
         ref={glowRef}
         className="absolute inset-0 pointer-events-none transition-all duration-700 ease-out z-0"
@@ -275,25 +319,15 @@ export default function CarShowcase() {
       <div className="absolute inset-0 bg-grain opacity-20 pointer-events-none z-0" />
 
       {/* ========================================================================= */}
-      {/* 2. THE MAIN CAR VIDEO (DOMINATING, FULL-HEIGHT, SEAMLESS DARK BLENDING)   */}
+      {/* 2. THE MAIN CAR CANVAS (DOMINATING, FULL-HEIGHT, HARDWARE-ACCELERATED)    */}
       {/* ========================================================================= */}
       <div className="relative z-10 w-full h-full flex items-center justify-center pointer-events-none">
-        <video
-          ref={videoRef}
-          poster="/images/car-showcase-poster.jpg"
-          muted
-          playsInline
-          autoPlay={false}
-          preload="auto"
-          disablePictureInPicture
-          disableRemotePlayback
+        <canvas
+          ref={canvasRef}
           className="relative h-full max-h-[86vh] sm:max-h-[92vh] w-auto max-w-full object-contain pointer-events-none select-none"
-        >
-          <source src="/videos/evoke-car-cinematic-mobile.mp4" media="(max-width: 767px)" type="video/mp4" />
-          <source src="/videos/evoke-car-cinematic.mp4" type="video/mp4" />
-        </video>
+        />
 
-        {/* Soft edge blending gradients to dissolve video boundaries into pure black */}
+        {/* Soft edge blending gradients to dissolve canvas boundaries into pure black */}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/70 pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black pointer-events-none" />
       </div>
@@ -381,4 +415,3 @@ export default function CarShowcase() {
     </section>
   );
 }
-
