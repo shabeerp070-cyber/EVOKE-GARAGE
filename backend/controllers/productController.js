@@ -2,22 +2,41 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Product } from '../models/Product.js';
+import {
+  isCloudinaryConfigured,
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  saveLocalFile,
+} from '../config/cloudinary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Safely delete local uploaded file if it exists
+ * Safely delete image asset (Cloudinary asset in production, or local file in dev)
  */
-const cleanupOldFile = (imagePath) => {
-  if (imagePath && imagePath.startsWith('/uploads/products/')) {
-    const fullPath = path.join(__dirname, '..', imagePath);
-    if (fs.existsSync(fullPath)) {
-      try {
+const cleanupOldFile = async (imagePath) => {
+  if (!imagePath) return;
+
+  // Cloudinary image cleanup
+  if (imagePath.includes('cloudinary.com') && isCloudinaryConfigured()) {
+    try {
+      await deleteFromCloudinary(imagePath);
+    } catch (err) {
+      console.warn('Could not delete Cloudinary asset:', err.message);
+    }
+    return;
+  }
+
+  // Local development file cleanup (only if local uploads folder exists)
+  if (imagePath.startsWith('/uploads/products/')) {
+    try {
+      const fullPath = path.join(__dirname, '..', imagePath);
+      if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
-      } catch (err) {
-        console.warn(`Could not delete file ${fullPath}:`, err.message);
       }
+    } catch (err) {
+      console.warn(`Could not delete local file ${imagePath}:`, err.message);
     }
   }
 };
@@ -117,13 +136,22 @@ export const getAdminProducts = async (req, res, next) => {
  * @access  Private (Admin only)
  */
 export const createProduct = async (req, res, next) => {
+  let uploadedImageUrl = '';
   try {
     const { name, category, price, description, stockStatus, compatibility, partNumber, isActive } = req.body;
 
     // Check if an image was uploaded via Multer, or an image URL was provided
     let image = '';
     if (req.file) {
-      image = `/uploads/products/${req.file.filename}`;
+      if (isCloudinaryConfigured()) {
+        const uploadResult = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+        image = uploadResult.secure_url;
+        uploadedImageUrl = image;
+      } else {
+        // Fallback for local development when Cloudinary is not configured
+        image = await saveLocalFile(req.file);
+        uploadedImageUrl = image;
+      }
     } else if (req.body.image) {
       image = req.body.image.trim();
     }
@@ -168,8 +196,8 @@ export const createProduct = async (req, res, next) => {
     });
   } catch (error) {
     // If error and file was uploaded, clean it up
-    if (req.file) {
-      cleanupOldFile(`/uploads/products/${req.file.filename}`);
+    if (uploadedImageUrl) {
+      cleanupOldFile(uploadedImageUrl);
     }
     next(error);
   }
@@ -181,11 +209,11 @@ export const createProduct = async (req, res, next) => {
  * @access  Private (Admin only)
  */
 export const updateProduct = async (req, res, next) => {
+  let uploadedImageUrl = '';
   try {
     const product = await Product.findById(req.params.id);
 
     if (!product) {
-      if (req.file) cleanupOldFile(`/uploads/products/${req.file.filename}`);
       return res.status(404).json({
         success: false,
         message: 'Product not found.',
@@ -206,9 +234,20 @@ export const updateProduct = async (req, res, next) => {
     // If new image file uploaded, replace old image
     if (req.file) {
       const oldImage = product.image;
-      product.image = `/uploads/products/${req.file.filename}`;
+      let newImage = '';
+      if (isCloudinaryConfigured()) {
+        const uploadResult = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+        newImage = uploadResult.secure_url;
+      } else {
+        newImage = await saveLocalFile(req.file);
+      }
+      uploadedImageUrl = newImage;
+      product.image = newImage;
+
       // Clean up previous uploaded image if different
-      cleanupOldFile(oldImage);
+      if (oldImage && oldImage !== newImage) {
+        cleanupOldFile(oldImage);
+      }
     } else if (req.body.image && req.body.image.trim()) {
       product.image = req.body.image.trim();
     }
@@ -221,7 +260,9 @@ export const updateProduct = async (req, res, next) => {
       product: updatedProduct,
     });
   } catch (error) {
-    if (req.file) cleanupOldFile(`/uploads/products/${req.file.filename}`);
+    if (uploadedImageUrl) {
+      cleanupOldFile(uploadedImageUrl);
+    }
     next(error);
   }
 };
@@ -245,7 +286,7 @@ export const deleteProduct = async (req, res, next) => {
     const imagePath = product.image;
     await Product.findByIdAndDelete(req.params.id);
 
-    // Clean up file from disk
+    // Clean up file if applicable
     cleanupOldFile(imagePath);
 
     return res.status(200).json({
@@ -256,4 +297,3 @@ export const deleteProduct = async (req, res, next) => {
     next(error);
   }
 };
-
