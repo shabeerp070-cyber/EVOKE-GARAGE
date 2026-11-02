@@ -98,7 +98,7 @@ export default function Hero({ onOpenBooking, onNavigateProducts, onOpenMenu }) 
         </div>
 
         {/* Center Stage: Independent Logo & Lowered Car Scene */}
-        <div className="relative w-full flex-1 flex flex-col items-center justify-start min-h-0 overflow-hidden mt-0.5 sm:mt-1">
+        <div className="relative w-full flex-1 flex flex-col items-center justify-start min-h-0 overflow-visible mt-0.5 sm:mt-1">
           {/* Circular EVOKE GARAGE Emblem (Moved slightly down for balanced top spacing) */}
           <div className="relative z-20 flex items-center justify-center flex-shrink-0 mt-4 sm:mt-4.5">
             <img
@@ -139,18 +139,8 @@ export default function Hero({ onOpenBooking, onNavigateProducts, onOpenMenu }) 
               PROFESSIONAL AUTOMOTIVE CARE.
             </p>
 
-            {/* Action Buttons: Compact gap, positioned close to bottom without large gap above */}
-            <div className="w-full mt-3 px-1 flex flex-col items-center gap-2">
-              {/* Button 1: PRODUCTS */}
-              <button
-                onClick={() => onNavigateProducts?.()}
-                className="w-full max-w-[340px] !min-h-[46px] sm:!min-h-[48px] bg-white text-black font-tech font-bold text-xs uppercase tracking-wider rounded-md shadow-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] hover:bg-zinc-200 transition-all cursor-pointer"
-              >
-                <ShoppingBag className="w-4 h-4 text-black stroke-[2]" />
-                <span>PRODUCTS</span>
-              </button>
-
-              {/* Button 2: BOOK CONSULTATION */}
+            {/* Hero CTA Button: Fully visible, positioned directly below subtitle with proper spacing */}
+            <div className="w-full mt-3.5 sm:mt-4 px-1 flex flex-col items-center">
               <button
                 onClick={handleBooking}
                 className="w-full max-w-[340px] !min-h-[46px] sm:!min-h-[48px] bg-white text-black font-tech font-bold text-xs uppercase tracking-wider rounded-md shadow-2xl flex items-center justify-center gap-2.5 active:scale-[0.98] hover:bg-zinc-200 transition-all cursor-pointer"
